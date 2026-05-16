@@ -1,0 +1,13 @@
+# One URL per line — Maya will crawl these and index the content
+# Lines starting with # are ignored
+#
+# Examples:
+# https://yourcompany.com/about
+# https://yourcompany.com/services
+# https://yourcompany.com/faq
+# https://yourcompany.com/contact
+
+
+https://www.sginetronics.com/
+https://www.sginetronics.com/products.html
+https://www.sginetronics.com/contact.html

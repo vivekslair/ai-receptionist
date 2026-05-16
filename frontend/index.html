@@ -1,0 +1,1547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Maya — AI Receptionist</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+Malayalam:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Reset & Base ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #07070F;
+      --surface:      rgba(255,255,255,0.04);
+      --surface-2:    rgba(255,255,255,0.07);
+      --border:       rgba(255,255,255,0.08);
+      --border-2:     rgba(255,255,255,0.14);
+
+      --purple:       #8B5CF6;
+      --purple-dim:   rgba(139,92,246,0.18);
+      --purple-glow:  rgba(139,92,246,0.35);
+      --gold:         #F59E0B;
+      --gold-dim:     rgba(245,158,11,0.18);
+      --green:        #10B981;
+      --green-dim:    rgba(16,185,129,0.18);
+      --red:          #EF4444;
+      --red-dim:      rgba(239,68,68,0.18);
+      --orange:       #F97316;
+      --orange-dim:   rgba(249,115,22,0.18);
+      --blue:         #3B82F6;
+      --blue-dim:     rgba(59,130,246,0.18);
+      --teal:         #14B8A6;
+
+      --text:         #E2E8F0;
+      --text-dim:     #94A3B8;
+      --text-muted:   #475569;
+
+      --radius:       14px;
+      --radius-sm:    8px;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', 'Noto Sans Malayalam', sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      overflow: hidden;
+    }
+
+    /* ── Layout ────────────────────────────────────────────────── */
+    .app {
+      display: grid;
+      grid-template-rows: 56px 1fr;
+      grid-template-columns: 1fr 360px;
+      height: 100vh;
+      gap: 0;
+    }
+
+    /* ── Header ────────────────────────────────────────────────── */
+    .header {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(7,7,15,0.9);
+      backdrop-filter: blur(20px);
+      z-index: 10;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo {
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--purple), #C026D3);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 15px; color: #fff;
+      box-shadow: 0 0 18px var(--purple-glow);
+      flex-shrink: 0;
+    }
+
+    .logo-text { font-size: 17px; font-weight: 600; letter-spacing: -0.3px; }
+    .logo-text span { color: var(--purple); }
+
+    .tagline {
+      font-size: 12px;
+      color: var(--text-muted);
+      padding: 3px 8px;
+      background: var(--surface);
+      border-radius: 20px;
+      border: 1px solid var(--border);
+    }
+
+    .header-right { display: flex; align-items: center; gap: 10px; }
+
+    .lang-toggle {
+      display: flex;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 3px;
+      gap: 2px;
+    }
+    .lang-btn {
+      padding: 4px 12px;
+      border-radius: 16px;
+      border: none;
+      background: transparent;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .lang-btn.active {
+      background: var(--purple);
+      color: #fff;
+    }
+
+    .conn-pill {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+    .conn-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      transition: background 0.3s;
+    }
+    .conn-pill.connected .conn-dot   { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .conn-pill.connecting .conn-dot  { background: var(--gold); animation: pulse-dot 1s infinite; }
+    .conn-pill.error .conn-dot       { background: var(--red); }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; } 50% { opacity: 0.3; }
+    }
+
+    /* ── Main (left panel) ─────────────────────────────────────── */
+    .main {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      padding: 24px;
+      border-right: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Ambient glow bg */
+    .main::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 40% at 50% 30%, rgba(139,92,246,0.08) 0%, transparent 70%),
+        radial-gradient(ellipse 40% 30% at 30% 70%, rgba(20,184,166,0.05) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* ── Idle / Start Call screen ──────────────────────────────── */
+    .start-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+      text-align: center;
+    }
+
+    .start-avatar {
+      width: 100px; height: 100px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--purple), #7C3AED);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 40px;
+      box-shadow: 0 0 40px var(--purple-glow), 0 0 80px rgba(139,92,246,0.15);
+      animation: float 4s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0);    }
+      50%       { transform: translateY(-8px); }
+    }
+
+    .start-screen h2 { font-size: 22px; font-weight: 600; }
+    .start-screen p  { color: var(--text-dim); max-width: 320px; font-size: 13px; }
+
+    .btn-start {
+      padding: 14px 40px;
+      border-radius: 40px;
+      border: none;
+      background: linear-gradient(135deg, var(--purple), #7C3AED);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 24px var(--purple-glow);
+      transition: all 0.2s;
+      letter-spacing: 0.2px;
+    }
+    .btn-start:hover { transform: translateY(-2px); box-shadow: 0 6px 30px var(--purple-glow); }
+    .btn-start:active { transform: translateY(0); }
+
+    /* ── Active call screen ────────────────────────────────────── */
+    .call-screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      gap: 16px;
+    }
+    .call-screen.visible { display: flex; }
+
+    /* Maya Avatar ring */
+    .avatar-wrap {
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .avatar-ring {
+      position: absolute;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      animation: none;
+    }
+    .ring-1 { width: 110px; height: 110px; }
+    .ring-2 { width: 128px; height: 128px; }
+    .ring-3 { width: 148px; height: 148px; }
+
+    .avatar {
+      width: 90px; height: 90px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--purple) 0%, #7C3AED 50%, #C026D3 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 36px;
+      font-weight: 700;
+      color: #fff;
+      position: relative;
+      z-index: 1;
+      transition: box-shadow 0.4s;
+    }
+
+    /* State-based ring animations */
+    .avatar-wrap.state-listening .ring-1 {
+      border-color: rgba(59,130,246,0.5);
+      animation: ring-pulse 2s ease-in-out infinite;
+    }
+    .avatar-wrap.state-recording .avatar {
+      box-shadow: 0 0 30px rgba(239,68,68,0.6);
+    }
+    .avatar-wrap.state-recording .ring-1 {
+      border-color: rgba(239,68,68,0.7);
+      animation: ring-pulse 0.8s ease-in-out infinite;
+    }
+    .avatar-wrap.state-recording .ring-2 {
+      border-color: rgba(239,68,68,0.4);
+      animation: ring-pulse 0.8s ease-in-out infinite 0.2s;
+    }
+    .avatar-wrap.state-thinking .ring-1 {
+      border-color: rgba(245,158,11,0.6);
+      animation: ring-rotate 1.5s linear infinite;
+      border-style: dashed;
+    }
+    .avatar-wrap.state-speaking .avatar {
+      box-shadow: 0 0 30px rgba(16,185,129,0.5);
+    }
+    .avatar-wrap.state-speaking .ring-1 {
+      border-color: rgba(16,185,129,0.6);
+      animation: ring-pulse 0.6s ease-in-out infinite;
+    }
+    .avatar-wrap.state-speaking .ring-2 {
+      border-color: rgba(16,185,129,0.3);
+      animation: ring-pulse 0.6s ease-in-out infinite 0.15s;
+    }
+    .avatar-wrap.state-speaking .ring-3 {
+      border-color: rgba(16,185,129,0.15);
+      animation: ring-pulse 0.6s ease-in-out infinite 0.3s;
+    }
+
+    @keyframes ring-pulse {
+      0%, 100% { transform: scale(1);    opacity: 1;   }
+      50%       { transform: scale(1.06); opacity: 0.5; }
+    }
+    @keyframes ring-rotate {
+      from { transform: rotate(0deg);   }
+      to   { transform: rotate(360deg); }
+    }
+
+    /* Status badge */
+    .status-badge {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-dim);
+      transition: all 0.3s;
+      min-width: 150px;
+      justify-content: center;
+    }
+    .status-badge .status-icon { font-size: 14px; }
+
+    .status-badge.state-listening   { color: var(--blue);   border-color: rgba(59,130,246,0.3);   background: var(--blue-dim);   }
+    .status-badge.state-recording   { color: var(--red);    border-color: rgba(239,68,68,0.3);    background: var(--red-dim);    }
+    .status-badge.state-transcribing{ color: var(--purple); border-color: var(--purple-dim);      background: var(--purple-dim); }
+    .status-badge.state-thinking    { color: var(--gold);   border-color: rgba(245,158,11,0.3);   background: var(--gold-dim);   }
+    .status-badge.state-speaking    { color: var(--green);  border-color: rgba(16,185,129,0.3);   background: var(--green-dim);  }
+
+    /* ── Conversation ───────────────────────────────────────────── */
+    .conversation {
+      width: 100%;
+      max-width: 560px;
+      max-height: 240px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 4px 2px;
+    }
+    .conversation::-webkit-scrollbar { width: 4px; }
+    .conversation::-webkit-scrollbar-track { background: transparent; }
+    .conversation::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 4px; }
+
+    .bubble {
+      max-width: 80%;
+      padding: 10px 14px;
+      border-radius: 14px;
+      font-size: 13px;
+      line-height: 1.5;
+      animation: bubble-in 0.25s ease;
+    }
+    @keyframes bubble-in {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0);   }
+    }
+    .bubble.user {
+      align-self: flex-end;
+      background: var(--purple-dim);
+      border: 1px solid rgba(139,92,246,0.25);
+      border-bottom-right-radius: 4px;
+    }
+    .bubble.maya {
+      align-self: flex-start;
+      background: var(--surface-2);
+      border: 1px solid var(--border-2);
+      border-bottom-left-radius: 4px;
+    }
+    .bubble .bubble-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 3px;
+      opacity: 0.6;
+    }
+
+    /* ── Waveform ───────────────────────────────────────────────── */
+    .waveform-wrap {
+      width: 100%;
+      max-width: 560px;
+      height: 48px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      position: relative;
+    }
+    #waveform-canvas {
+      width: 100%; height: 100%;
+      display: block;
+    }
+    .waveform-idle {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+    }
+    .waveform-idle span {
+      display: block;
+      width: 2px; height: 6px;
+      background: var(--text-muted);
+      border-radius: 1px;
+      animation: idle-wave 1.4s ease-in-out infinite;
+    }
+    .waveform-idle span:nth-child(1) { animation-delay: 0s;    }
+    .waveform-idle span:nth-child(2) { animation-delay: 0.1s;  }
+    .waveform-idle span:nth-child(3) { animation-delay: 0.2s;  height: 14px; }
+    .waveform-idle span:nth-child(4) { animation-delay: 0.3s;  }
+    .waveform-idle span:nth-child(5) { animation-delay: 0.4s;  height: 20px; }
+    .waveform-idle span:nth-child(6) { animation-delay: 0.5s;  height: 10px; }
+    .waveform-idle span:nth-child(7) { animation-delay: 0.6s;  height: 16px; }
+    .waveform-idle span:nth-child(8) { animation-delay: 0.7s;  }
+    .waveform-idle span:nth-child(9) { animation-delay: 0.8s;  height: 12px; }
+    .waveform-idle span:nth-child(10){ animation-delay: 0.9s;  }
+    @keyframes idle-wave {
+      0%, 100% { transform: scaleY(1); opacity: 0.3; }
+      50%       { transform: scaleY(2.5); opacity: 0.6; }
+    }
+
+    /* ── VAD Panel ──────────────────────────────────────────────── */
+    .controls {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      max-width: 560px;
+    }
+
+    .vad-panel {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .vad-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .vad-state-label {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .vad-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      flex-shrink: 0;
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+    .vad-dot.waiting    { background: var(--blue);   box-shadow: 0 0 5px var(--blue);   animation: vad-blink 2s ease-in-out infinite; }
+    .vad-dot.speech     { background: var(--red);    box-shadow: 0 0 7px var(--red);    animation: vad-blink 0.5s ease-in-out infinite; }
+    .vad-dot.silence    { background: var(--gold);   box-shadow: 0 0 5px var(--gold);   }
+    .vad-dot.idle       { background: var(--text-muted); box-shadow: none; animation: none; }
+    @keyframes vad-blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    .vad-sensitivity {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .sens-label { font-size: 10px; color: var(--text-muted); white-space: nowrap; }
+    #sensitivity-slider {
+      width: 72px; height: 3px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: var(--border-2);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+    #sensitivity-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: var(--purple);
+      cursor: pointer;
+    }
+
+    /* Energy meter */
+    .energy-bar-wrap {
+      position: relative;
+      height: 6px;
+      background: var(--surface-2);
+      border-radius: 3px;
+      overflow: visible;
+    }
+    .energy-bar {
+      height: 100%;
+      width: 0%;
+      border-radius: 3px;
+      background: var(--blue);
+      transition: width 0.06s linear, background 0.15s;
+    }
+    .energy-bar.speech  { background: var(--red);  }
+    .energy-bar.silence { background: var(--gold); }
+
+    /* Threshold line */
+    .energy-threshold {
+      position: absolute;
+      top: -3px; bottom: -3px;
+      width: 2px;
+      background: rgba(255,255,255,0.25);
+      border-radius: 1px;
+      left: 0%;
+      transition: left 0.3s;
+    }
+
+    /* Silence countdown */
+    .silence-countdown-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .silence-countdown-bar {
+      flex: 1;
+      height: 4px;
+      background: var(--gold);
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.08s linear;
+    }
+    .silence-label { font-size: 10px; color: var(--gold); white-space: nowrap; }
+
+    .btn-end {
+      padding: 9px 20px;
+      border-radius: 20px;
+      border: 1px solid rgba(239,68,68,0.3);
+      background: var(--red-dim);
+      color: var(--red);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      align-self: center;
+    }
+    .btn-end:hover { background: rgba(239,68,68,0.25); }
+
+    /* ── Right Panel — Event Log ────────────────────────────────── */
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: rgba(7,7,15,0.6);
+    }
+
+    .sidebar-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .sidebar-header h3 {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+    }
+
+    .filter-row {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+      padding: 0 16px 10px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .filter-chip {
+      padding: 2px 9px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      opacity: 0.45;
+      transition: opacity 0.15s;
+      border: none;
+      letter-spacing: 0.3px;
+    }
+    .filter-chip.active { opacity: 1; }
+    .chip-session   { background: var(--blue-dim);   color: var(--blue);   }
+    .chip-stt       { background: var(--purple-dim); color: var(--purple); }
+    .chip-llm       { background: var(--green-dim);  color: var(--green);  }
+    .chip-tts       { background: var(--gold-dim);   color: var(--gold);   }
+    .chip-audio     { background: var(--orange-dim); color: var(--orange); }
+    .chip-error     { background: var(--red-dim);    color: var(--red);    }
+
+    .event-log {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .event-log::-webkit-scrollbar { width: 4px; }
+    .event-log::-webkit-scrollbar-track { background: transparent; }
+    .event-log::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 4px; }
+
+    .event-item {
+      padding: 7px 10px;
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      transition: border-color 0.2s;
+      animation: event-in 0.2s ease;
+    }
+    @keyframes event-in {
+      from { opacity: 0; transform: translateX(6px); }
+      to   { opacity: 1; transform: translateX(0);   }
+    }
+    .event-item:hover { border-color: var(--border-2); }
+
+    .event-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+    .event-type-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 6px;
+      letter-spacing: 0.3px;
+    }
+    .event-time {
+      font-size: 10px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+    }
+    .event-detail {
+      font-size: 11.5px;
+      color: var(--text-dim);
+      margin-top: 3px;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+    .event-latency {
+      display: inline-block;
+      margin-left: 6px;
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 5px;
+      background: var(--surface-2);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Event type colours */
+    .badge-session     { background: var(--blue-dim);   color: var(--blue);   }
+    .badge-audio       { background: var(--orange-dim); color: var(--orange); }
+    .badge-stt         { background: var(--purple-dim); color: var(--purple); }
+    .badge-llm         { background: var(--green-dim);  color: var(--green);  }
+    .badge-tts         { background: var(--gold-dim);   color: var(--gold);   }
+    .badge-error       { background: var(--red-dim);    color: var(--red);    }
+
+    /* ── Metrics panel ──────────────────────────────────────────── */
+    .metrics-panel {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .metrics-title {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+    .metric-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 7px 8px;
+      text-align: center;
+    }
+    .metric-label { font-size: 9px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .metric-value { font-size: 15px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
+    .metric-unit  { font-size: 9px; color: var(--text-muted); }
+    #m-stt   .metric-value { color: var(--purple); }
+    #m-llm   .metric-value { color: var(--green);  }
+    #m-tts   .metric-value { color: var(--gold);   }
+    #m-total .metric-value { color: var(--text);   }
+
+    .empty-log {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 12px;
+      padding: 32px 16px;
+    }
+    .empty-log .empty-icon { font-size: 28px; margin-bottom: 8px; }
+
+    /* ── Typing indicator (Maya thinking dots) ─────────────────── */
+    .thinking-dots {
+      display: none;
+      align-self: flex-start;
+      padding: 12px 16px;
+      background: var(--surface-2);
+      border: 1px solid var(--border-2);
+      border-radius: 14px;
+      border-bottom-left-radius: 4px;
+      gap: 5px;
+    }
+    .thinking-dots.visible { display: flex; }
+    .thinking-dots span {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      animation: thinking 1.2s ease-in-out infinite;
+    }
+    .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes thinking {
+      0%, 80%, 100% { transform: scale(0.8); opacity: 0.4; }
+      40%            { transform: scale(1.2); opacity: 1;   }
+    }
+
+    /* ── Toast notification ─────────────────────────────────────── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: rgba(15,15,25,0.95);
+      border: 1px solid var(--border-2);
+      color: var(--text);
+      padding: 10px 20px;
+      border-radius: 24px;
+      font-size: 13px;
+      backdrop-filter: blur(16px);
+      transition: transform 0.3s ease;
+      z-index: 100;
+      white-space: nowrap;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .toast.error-toast { border-color: rgba(239,68,68,0.4); color: var(--red); }
+  </style>
+</head>
+
+<body>
+<div class="app">
+
+  <!-- ── Header ───────────────────────────────────────────────── -->
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">M</div>
+      <span class="logo-text"><span>Maya</span></span>
+      <span class="tagline">AI Receptionist · Sarvam + Claude</span>
+    </div>
+    <div class="header-right">
+      <div class="lang-toggle">
+        <button class="lang-btn active" data-lang="ml-IN" onclick="setLanguage('ml-IN', this)">മലയാളം</button>
+        <button class="lang-btn"        data-lang="en-IN" onclick="setLanguage('en-IN', this)">English</button>
+      </div>
+      <div class="conn-pill" id="conn-pill">
+        <div class="conn-dot"></div>
+        <span id="conn-label">Disconnected</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Main ─────────────────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- Start screen -->
+    <div class="start-screen" id="start-screen">
+      <div class="start-avatar">🎙️</div>
+      <h2>Meet Maya</h2>
+      <p>Your 24 × 7 AI receptionist — speaks Malayalam &amp; English, powered by Sarvam AI &amp; Claude.</p>
+      <button class="btn-start" onclick="startCall()">📞 Start Call</button>
+    </div>
+
+    <!-- Active call screen -->
+    <div class="call-screen" id="call-screen">
+
+      <!-- Avatar with animated rings -->
+      <div class="avatar-wrap state-idle" id="avatar-wrap">
+        <div class="avatar-ring ring-3" id="ring-3"></div>
+        <div class="avatar-ring ring-2" id="ring-2"></div>
+        <div class="avatar-ring ring-1" id="ring-1"></div>
+        <div class="avatar" id="avatar">M</div>
+      </div>
+
+      <!-- Status badge -->
+      <div class="status-badge" id="status-badge">
+        <span class="status-icon">💤</span>
+        <span id="status-text">Connecting…</span>
+      </div>
+
+      <!-- Conversation bubbles -->
+      <div class="conversation" id="conversation">
+        <div class="thinking-dots" id="thinking-dots">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+
+      <!-- Waveform -->
+      <div class="waveform-wrap">
+        <canvas id="waveform-canvas"></canvas>
+        <div class="waveform-idle" id="waveform-idle">
+          <span></span><span></span><span></span><span></span><span></span>
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+      </div>
+
+      <!-- Controls — VAD Panel -->
+      <div class="controls">
+        <div class="vad-panel" id="vad-panel">
+          <div class="vad-top">
+            <div class="vad-state-label">
+              <div class="vad-dot idle" id="vad-dot"></div>
+              <span id="vad-state-text">Idle</span>
+            </div>
+            <div class="vad-sensitivity">
+              <span class="sens-label">Sensitivity</span>
+              <input type="range" id="sensitivity-slider" min="1" max="5" value="3"
+                     oninput="updateSensitivity(this.value)">
+            </div>
+          </div>
+          <div class="energy-bar-wrap">
+            <div class="energy-bar" id="energy-bar"></div>
+            <div class="energy-threshold" id="energy-threshold"></div>
+          </div>
+          <div class="silence-countdown-wrap" id="silence-countdown-wrap" style="display:none">
+            <div class="silence-countdown-bar" id="silence-countdown-bar"></div>
+            <span class="silence-label">End of speech detected…</span>
+          </div>
+        </div>
+        <button class="btn-end" onclick="endCall()">✕ End Call</button>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- ── Sidebar — Event Log ───────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h3>Event Log</h3>
+      <button onclick="clearLog()" style="font-size:11px;background:none;border:none;color:var(--text-muted);cursor:pointer;">Clear</button>
+    </div>
+
+    <div class="filter-row">
+      <button class="filter-chip chip-session active" data-cat="session" onclick="toggleFilter(this)">SESSION</button>
+      <button class="filter-chip chip-audio   active" data-cat="audio"   onclick="toggleFilter(this)">AUDIO</button>
+      <button class="filter-chip chip-stt     active" data-cat="stt"     onclick="toggleFilter(this)">STT</button>
+      <button class="filter-chip chip-llm     active" data-cat="llm"     onclick="toggleFilter(this)">LLM</button>
+      <button class="filter-chip chip-tts     active" data-cat="tts"     onclick="toggleFilter(this)">TTS</button>
+      <button class="filter-chip chip-error   active" data-cat="error"   onclick="toggleFilter(this)">ERROR</button>
+    </div>
+
+    <div class="event-log" id="event-log">
+      <div class="empty-log" id="log-empty">
+        <div class="empty-icon">📋</div>
+        Start a call to see live events
+      </div>
+    </div>
+
+    <div class="metrics-panel">
+      <div class="metrics-title">Last Turn Latency</div>
+      <div class="metrics-grid">
+        <div class="metric-box" id="m-stt">
+          <div class="metric-label">STT</div>
+          <div class="metric-value">—</div>
+          <div class="metric-unit">ms</div>
+        </div>
+        <div class="metric-box" id="m-llm">
+          <div class="metric-label">LLM</div>
+          <div class="metric-value">—</div>
+          <div class="metric-unit">ms</div>
+        </div>
+        <div class="metric-box" id="m-tts">
+          <div class="metric-label">TTS</div>
+          <div class="metric-value">—</div>
+          <div class="metric-unit">ms</div>
+        </div>
+        <div class="metric-box" id="m-total">
+          <div class="metric-label">Total</div>
+          <div class="metric-value">—</div>
+          <div class="metric-unit">ms</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- ── JavaScript ─────────────────────────────────────────────── -->
+<script>
+/* ── State ─────────────────────────────────────────────────────── */
+let ws            = null;
+let sessionId     = null;
+let activeFilters = new Set(['session','audio','stt','llm','tts','error']);
+let currentLang   = 'ml-IN';
+let audioContext  = null;
+let scriptProcessor = null;
+let micStream     = null;
+let analyserNode  = null;
+let rafId         = null;
+let audioQueue    = [];      // queued audio blobs to play sequentially
+let isPlaying     = false;
+let pendingListen = false;   // true when server said "listen" but audio is still playing
+
+/* ── VAD state machine ──────────────────────────────────────────── */
+// Sensitivity presets: {speech threshold, silence threshold} in RMS (0–1 scale)
+const SENSITIVITY = {
+  1: { speech: 0.04,  silence: 0.018 },  // Low  — tolerates ambient noise
+  2: { speech: 0.028, silence: 0.012 },
+  3: { speech: 0.018, silence: 0.008 },  // Default
+  4: { speech: 0.011, silence: 0.005 },
+  5: { speech: 0.006, silence: 0.003 },  // High — very quiet environments
+};
+const PRE_BUF_LEN    = 6;    // ~384 ms of pre-roll at 1024/16000 per frame
+const CONFIRM_FRAMES = 2;    // consecutive loud frames to confirm speech onset
+const SILENCE_MS     = 900;  // ms of continuous silence before auto-sending
+
+let vadState      = 'idle';  // idle | waiting | speech | silence
+let preBuffer     = [];      // rolling window of recent frames (pre-roll)
+let speechBuffer  = [];      // frames accumulating during speech
+let confirmCount  = 0;       // consecutive above-threshold frames
+let silenceStart  = 0;       // when silence phase began (performance.now)
+let vadSensitivity = 3;
+
+/* ── Session ID ─────────────────────────────────────────────────── */
+function genSessionId() {
+  return 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+}
+
+/* ── Start / End Call ───────────────────────────────────────────── */
+async function startCall() {
+  document.getElementById('start-screen').style.display = 'none';
+  document.getElementById('call-screen').classList.add('visible');
+  setConnPill('connecting', 'Connecting…');
+  await initMicrophone();
+  connectWS();
+}
+
+function endCall() {
+  if (ws) { ws.close(); ws = null; }
+  stopRecordingClean();
+  cancelAnimationFrame(rafId);
+  audioQueue   = [];
+  isPlaying    = false;
+  pendingListen = false;
+
+  document.getElementById('call-screen').classList.remove('visible');
+  document.getElementById('start-screen').style.display = '';
+  document.getElementById('conversation').innerHTML =
+    '<div class="thinking-dots" id="thinking-dots"><span></span><span></span><span></span></div>';
+  setConnPill('', 'Disconnected');
+  setStatus('idle');
+  resetMetrics();
+  showToast('Call ended');
+}
+
+/* ── Microphone Init ─────────────────────────────────────────────── */
+async function initMicrophone() {
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true }
+    });
+    audioContext = new AudioContext({ sampleRate: 16000 });
+    const src   = audioContext.createMediaStreamSource(micStream);
+    analyserNode = audioContext.createAnalyser();
+    analyserNode.fftSize = 256;
+    analyserNode.smoothingTimeConstant = 0.7;
+    src.connect(analyserNode);
+
+    // 1024-sample frames = ~64 ms at 16 kHz — tight enough for VAD
+    scriptProcessor = audioContext.createScriptProcessor(1024, 1, 1);
+    scriptProcessor.onaudioprocess = vadProcess;
+    analyserNode.connect(scriptProcessor);
+    scriptProcessor.connect(audioContext.destination);
+
+    startWaveformLoop();
+  } catch (err) {
+    showToast('Microphone access denied — please allow mic and refresh', true);
+  }
+}
+
+/* ── WebSocket ──────────────────────────────────────────────────── */
+function connectWS() {
+  sessionId = genSessionId();
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws/${sessionId}`);
+
+  ws.onopen = () => {
+    setConnPill('connected', 'Live');
+    addEventEntry('session_started', 'SESSION', { session_id: sessionId });
+  };
+
+  ws.onmessage = (e) => {
+    try { handleMsg(JSON.parse(e.data)); }
+    catch(err) { console.error('WS parse error', err); }
+  };
+
+  ws.onerror = () => {
+    setConnPill('error', 'Error');
+    setStatus('idle');
+  };
+
+  ws.onclose = () => {
+    if (document.getElementById('call-screen').classList.contains('visible')) {
+      setConnPill('', 'Disconnected');
+      setStatus('idle');
+    }
+  };
+}
+
+/* ── Message Router ─────────────────────────────────────────────── */
+function handleMsg(msg) {
+  switch (msg.type) {
+    case 'status':
+      handleStatus(msg);
+      break;
+    case 'greeting':
+      addBubble('maya', msg.text);
+      addEventEntry('greeting_sent', 'TTS', { text: msg.text, tts_ms: msg.tts_ms });
+      if (msg.audio) enqueueAudio(msg.audio);
+      break;
+    case 'filler_audio':
+      // Plays over the thinking gap — no bubble, just audio
+      if (msg.audio) enqueueAudio(msg.audio);
+      break;
+    case 'transcript':
+      addBubble('user', msg.text);
+      addEventEntry('stt_completed', 'STT', { transcript: msg.text, latency_ms: msg.latency_ms });
+      break;
+    case 'response_text':
+      showThinking(false);
+      addBubble('maya', msg.text);
+      addEventEntry('llm_completed', 'LLM', { response: truncate(msg.text, 80), latency_ms: msg.latency_ms });
+      break;
+    case 'audio_response':
+      if (msg.audio) enqueueAudio(msg.audio);
+      if (msg.metrics) updateMetrics(msg.metrics);
+      break;
+    case 'error':
+      addEventEntry('error', 'ERROR', { message: msg.message });
+      showToast(msg.message, true);
+      break;
+    case 'notice':
+      showToast(msg.message);
+      break;
+  }
+}
+
+function handleStatus(msg) {
+  const s = msg.status;
+  setStatus(s);
+  setAvatarState(s);
+
+  if (s === 'thinking') {
+    showThinking(true);
+  }
+
+  if (s === 'listening') {
+    showThinking(false);
+    // If Maya is still speaking (audio queue), defer VAD until playback finishes
+    if (isPlaying || audioQueue.length > 0) {
+      pendingListen = true;
+    } else {
+      activateVad();
+    }
+  }
+
+  // While server is processing — lock VAD to prevent double-sends
+  if (s === 'transcribing' || s === 'thinking' || s === 'speaking') {
+    pendingListen = false;
+    if (vadState !== 'idle') {
+      vadState = 'idle';
+      setVadDot('idle', 'Processing…');
+      showSilenceCountdown(false);
+    }
+  }
+
+  if (s === 'initializing') {
+    addEventEntry('session_connected', 'SESSION', { status: 'WebSocket connected' });
+  }
+}
+
+function activateVad() {
+  pendingListen = false;
+  if (vadState === 'idle') {
+    vadState     = 'waiting';
+    preBuffer    = [];
+    confirmCount = 0;
+    setVadDot('waiting', 'Listening…');
+  }
+}
+
+/* ── VAD — core processor (runs every 1024-sample frame) ─────────── */
+function vadProcess(e) {
+  if (vadState === 'idle') return;
+
+  const data  = e.inputBuffer.getChannelData(0);
+  const frame = new Float32Array(data);
+  const rms   = calcRMS(frame);
+  const sens  = SENSITIVITY[vadSensitivity];
+
+  updateEnergyBar(rms, sens.speech);
+
+  // ── WAITING: listen for speech onset ─────────────────────────── //
+  if (vadState === 'waiting') {
+    preBuffer.push(frame);
+    if (preBuffer.length > PRE_BUF_LEN) preBuffer.shift();
+
+    if (rms >= sens.speech) {
+      confirmCount++;
+      if (confirmCount >= CONFIRM_FRAMES) {
+        // Speech confirmed — grab pre-roll + current frame
+        vadState     = 'speech';
+        speechBuffer = [...preBuffer, frame];
+        preBuffer    = [];
+        confirmCount = 0;
+        setVadDot('speech', 'Speaking…');
+        setAvatarState('recording');
+        addEventEntry('audio_recording', 'AUDIO', { status: 'VAD speech detected' });
+      }
+    } else {
+      confirmCount = 0;
+    }
+    return;
+  }
+
+  // ── SPEECH: accumulate until silence detected ─────────────────── //
+  if (vadState === 'speech') {
+    speechBuffer.push(frame);
+    if (rms < sens.silence) {
+      vadState     = 'silence';
+      silenceStart = performance.now();
+      setVadDot('silence', 'End of speech…');
+      showSilenceCountdown(true);
+    }
+    return;
+  }
+
+  // ── SILENCE: wait SILENCE_MS; resume speech if loud again ──────── //
+  if (vadState === 'silence') {
+    speechBuffer.push(frame);
+    const elapsed = performance.now() - silenceStart;
+    updateSilenceCountdown(elapsed / SILENCE_MS);
+
+    if (rms >= sens.speech) {
+      // Resumed speaking
+      vadState = 'speech';
+      setVadDot('speech', 'Speaking…');
+      showSilenceCountdown(false);
+      return;
+    }
+
+    if (elapsed >= SILENCE_MS) {
+      vadState = 'idle';          // lock out VAD while server processes
+      showSilenceCountdown(false);
+      sendSpeechBuffer();
+    }
+  }
+}
+
+/* ── VAD helpers ────────────────────────────────────────────────── */
+function calcRMS(data) {
+  let sum = 0;
+  for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
+  return Math.sqrt(sum / data.length);
+}
+
+function sendSpeechBuffer() {
+  if (!ws || ws.readyState !== WebSocket.OPEN || speechBuffer.length === 0) {
+    speechBuffer = [];
+    return;
+  }
+  const wavBytes = buildWAV(speechBuffer, 16000);
+  const b64      = uint8ToBase64(wavBytes);
+  speechBuffer   = [];
+  addEventEntry('audio_sent', 'AUDIO', { bytes: wavBytes.length });
+  ws.send(JSON.stringify({ type: 'audio', audio: b64 }));
+  setVadDot('idle', 'Processing…');
+  setAvatarState('transcribing');
+}
+
+function setVadDot(state, text) {
+  const dot  = document.getElementById('vad-dot');
+  const span = document.getElementById('vad-state-text');
+  if (dot)  dot.className     = `vad-dot ${state}`;
+  if (span) span.textContent  = text;
+}
+
+function updateSensitivity(val) {
+  vadSensitivity = parseInt(val);
+  // Reposition threshold line immediately
+  const sens = SENSITIVITY[vadSensitivity];
+  const tpct = Math.min(sens.speech * 500, 100);
+  const line = document.getElementById('energy-threshold');
+  if (line) line.style.left = tpct + '%';
+}
+
+function updateEnergyBar(rms, threshold) {
+  const bar  = document.getElementById('energy-bar');
+  const line = document.getElementById('energy-threshold');
+  if (!bar) return;
+  const pct = Math.min(rms * 500, 100);  // 0.20 RMS → 100 %
+  bar.style.width = pct + '%';
+  bar.className   = 'energy-bar' +
+    (vadState === 'speech' || vadState === 'silence' ? ' speech' : '');
+  if (line) {
+    const tpct = Math.min(threshold * 500, 100);
+    line.style.left = tpct + '%';
+  }
+}
+
+function showSilenceCountdown(show) {
+  const wrap = document.getElementById('silence-countdown-wrap');
+  if (wrap) wrap.style.display = show ? 'flex' : 'none';
+  if (!show) updateSilenceCountdown(0);
+}
+
+function updateSilenceCountdown(fraction) {
+  const bar = document.getElementById('silence-countdown-bar');
+  if (bar) bar.style.width = Math.min(fraction * 100, 100) + '%';
+}
+
+/* ── Clean teardown ──────────────────────────────────────────────── */
+function stopRecordingClean() {
+  vadState     = 'idle';
+  preBuffer    = [];
+  speechBuffer = [];
+  confirmCount = 0;
+  showSilenceCountdown(false);
+  setVadDot('idle', 'Idle');
+  if (micStream)      { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  if (scriptProcessor){ scriptProcessor.disconnect(); scriptProcessor = null; }
+  if (analyserNode)   { analyserNode.disconnect(); analyserNode = null; }
+  if (audioContext)   { audioContext.close(); audioContext = null; }
+}
+
+/* ── WAV Builder (raw PCM → WAV in browser) ──────────────────────── */
+function buildWAV(chunks, sampleRate) {
+  const total = chunks.reduce((n, c) => n + c.length, 0);
+  const merged = new Float32Array(total);
+  let off = 0;
+  for (const c of chunks) { merged.set(c, off); off += c.length; }
+
+  const int16 = new Int16Array(total);
+  for (let i = 0; i < total; i++) {
+    const s = Math.max(-1, Math.min(1, merged[i]));
+    int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+  }
+
+  const dataLen = int16.byteLength;
+  const buf  = new ArrayBuffer(44 + dataLen);
+  const view = new DataView(buf);
+
+  const ws = (off, str) => { for (let i=0;i<str.length;i++) view.setUint8(off+i, str.charCodeAt(i)); };
+  ws(0,  'RIFF');
+  view.setUint32(4,  36 + dataLen, true);
+  ws(8,  'WAVE');
+  ws(12, 'fmt ');
+  view.setUint32(16, 16,          true);
+  view.setUint16(20, 1,           true);   // PCM
+  view.setUint16(22, 1,           true);   // mono
+  view.setUint32(24, sampleRate,  true);
+  view.setUint32(28, sampleRate*2,true);
+  view.setUint16(32, 2,           true);
+  view.setUint16(34, 16,          true);
+  ws(36, 'data');
+  view.setUint32(40, dataLen, true);
+
+  new Int16Array(buf, 44).set(int16);
+  return new Uint8Array(buf);
+}
+
+function uint8ToBase64(bytes) {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+
+/* ── Audio Playback Queue ─────────────────────────────────────────── */
+function enqueueAudio(b64) {
+  audioQueue.push(b64);
+  if (!isPlaying) playNext();
+}
+
+async function playNext() {
+  if (audioQueue.length === 0) {
+    isPlaying = false;
+    // Queue drained — if server already signalled "listening", activate VAD now
+    if (pendingListen) activateVad();
+    return;
+  }
+  isPlaying = true;
+  const b64 = audioQueue.shift();
+  try {
+    const bin  = atob(b64);
+    const buf  = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+
+    const ctx  = new AudioContext();
+    const abuf = await ctx.decodeAudioData(buf.buffer);
+    const src  = ctx.createBufferSource();
+    src.buffer = abuf;
+    src.connect(ctx.destination);
+    src.onended = () => { ctx.close(); playNext(); };
+    src.start(0);
+  } catch(e) {
+    console.warn('Audio playback error', e);
+    playNext();
+  }
+}
+
+/* ── Waveform Visualizer ─────────────────────────────────────────── */
+function startWaveformLoop() {
+  const canvas  = document.getElementById('waveform-canvas');
+  const ctx2d   = canvas.getContext('2d');
+  const idleFx  = document.getElementById('waveform-idle');
+
+  function draw() {
+    rafId = requestAnimationFrame(draw);
+    canvas.width  = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+
+    const userSpeaking = (vadState === 'speech' || vadState === 'silence');
+    if (!analyserNode || !userSpeaking) {
+      ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+      idleFx.style.display = userSpeaking ? 'none' : 'flex';
+      return;
+    }
+
+    idleFx.style.display = 'none';
+    const data = new Uint8Array(analyserNode.frequencyBinCount);
+    analyserNode.getByteFrequencyData(data);
+
+    const W = canvas.width, H = canvas.height;
+    const barW = W / data.length * 2.5;
+    let x = 0;
+
+    ctx2d.clearRect(0, 0, W, H);
+    for (let i=0; i < data.length; i++) {
+      const barH = (data[i] / 255) * H * 0.9;
+      const grad = ctx2d.createLinearGradient(0, H, 0, H - barH);
+      grad.addColorStop(0, 'rgba(139,92,246,0.8)');
+      grad.addColorStop(1, 'rgba(192,38,211,0.3)');
+      ctx2d.fillStyle = grad;
+      ctx2d.fillRect(x, H - barH, barW - 1, barH);
+      x += barW + 1;
+    }
+  }
+  draw();
+}
+
+/* ── Language ────────────────────────────────────────────────────── */
+function setLanguage(lang, btn) {
+  currentLang = lang;
+  document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'set_language', language: lang }));
+  }
+}
+
+/* ── UI helpers ─────────────────────────────────────────────────── */
+const STATUS_MAP = {
+  initializing:  { icon: '⚙️',  text: 'Initializing…' },
+  listening:     { icon: '👂',  text: 'Listening'      },
+  recording:     { icon: '🔴',  text: 'Recording'      },
+  transcribing:  { icon: '✍️',  text: 'Transcribing'   },
+  thinking:      { icon: '🧠',  text: 'Thinking'       },
+  speaking:      { icon: '🔊',  text: 'Speaking'       },
+  idle:          { icon: '💤',  text: 'Idle'            },
+};
+
+function setStatus(state) {
+  const map = STATUS_MAP[state] || { icon: '•', text: state };
+  const badge = document.getElementById('status-badge');
+  badge.className = `status-badge state-${state}`;
+  badge.querySelector('.status-icon').textContent = map.icon;
+  document.getElementById('status-text').textContent = map.text;
+}
+
+function setAvatarState(state) {
+  const wrap = document.getElementById('avatar-wrap');
+  wrap.className = `avatar-wrap state-${state}`;
+}
+
+function setConnPill(cls, label) {
+  const pill = document.getElementById('conn-pill');
+  pill.className = 'conn-pill ' + cls;
+  document.getElementById('conn-label').textContent = label;
+}
+
+function addBubble(role, text) {
+  const conv  = document.getElementById('conversation');
+  const dots  = document.getElementById('thinking-dots');
+  const el    = document.createElement('div');
+  el.className = `bubble ${role}`;
+  el.innerHTML = `<div class="bubble-label">${role === 'user' ? 'You' : 'Maya'}</div>${escHtml(text)}`;
+  conv.insertBefore(el, dots);
+  conv.scrollTop = conv.scrollHeight;
+}
+
+function showThinking(show) {
+  const dots = document.getElementById('thinking-dots');
+  if (dots) dots.classList.toggle('visible', show);
+}
+
+function updateMetrics(m) {
+  const set = (id, val) => {
+    const box = document.getElementById(id);
+    if (box) box.querySelector('.metric-value').textContent = val ?? '—';
+  };
+  set('m-stt',   m.stt_ms);
+  set('m-llm',   m.llm_ms);
+  set('m-tts',   m.tts_ms);
+  set('m-total', m.total_ms);
+}
+
+function resetMetrics() {
+  ['m-stt','m-llm','m-tts','m-total'].forEach(id => {
+    const box = document.getElementById(id);
+    if (box) box.querySelector('.metric-value').textContent = '—';
+  });
+}
+
+/* ── Event Log ──────────────────────────────────────────────────── */
+const CAT_MAP = {
+  session_started:   'session', session_connected: 'session', session_ended: 'session',
+  language_changed:  'session', greeting_sent:     'session',
+  audio_received:    'audio',   audio_sent:        'audio', audio_recording: 'audio',
+  stt_started:       'stt',     stt_completed:     'stt',
+  kb_retrieved:      'llm',
+  llm_started:       'llm',     llm_completed:     'llm',
+  filler_sent:       'tts',
+  tts_started:       'tts',     tts_completed:     'tts',
+  error:             'error',
+};
+
+const BADGE_MAP = {
+  session: 'badge-session', audio: 'badge-audio',
+  stt:     'badge-stt',     llm:   'badge-llm',
+  tts:     'badge-tts',     error: 'badge-error',
+};
+
+function addEventEntry(type, label, data) {
+  const cat    = CAT_MAP[type] || 'session';
+  const empty  = document.getElementById('log-empty');
+  if (empty) empty.remove();
+
+  const log = document.getElementById('event-log');
+  const el  = document.createElement('div');
+  el.className    = 'event-item';
+  el.dataset.cat  = cat;
+
+  const now = new Date();
+  const ts  = now.toTimeString().slice(0, 8) + '.' + String(now.getMilliseconds()).padStart(3,'0');
+
+  // Build detail line
+  let detail = '';
+  if (data.transcript) detail = `"${truncate(data.transcript, 60)}"`;
+  else if (data.response) detail = `"${truncate(data.response, 60)}"`;
+  else if (data.text) detail = `"${truncate(data.text, 60)}"`;
+  else if (data.message) detail = data.message;
+  else if (data.status) detail = data.status;
+  else if (data.bytes) detail = `${data.bytes} bytes`;
+  else if (data.chunks_found != null) detail = `${data.chunks_found} chunk(s) — ${truncate(data.preview || '', 50)}`;
+
+  let latencyEl = '';
+  if (data.latency_ms != null) latencyEl = `<span class="event-latency">${data.latency_ms}ms</span>`;
+  else if (data.tts_ms != null) latencyEl = `<span class="event-latency">${data.tts_ms}ms</span>`;
+
+  el.innerHTML = `
+    <div class="event-header">
+      <span class="event-type-badge ${BADGE_MAP[cat]}">${label}</span>
+      <span class="event-type-badge ${BADGE_MAP[cat]}" style="font-size:9px;opacity:0.6;">${type}</span>
+      <span class="event-time">${ts}</span>
+    </div>
+    ${detail ? `<div class="event-detail">${escHtml(detail)}${latencyEl}</div>` : ''}
+  `;
+
+  // Respect active filter
+  if (!activeFilters.has(cat)) el.style.display = 'none';
+
+  // Insert newest at top
+  log.insertBefore(el, log.firstChild);
+}
+
+function toggleFilter(btn) {
+  const cat = btn.dataset.cat;
+  if (activeFilters.has(cat)) {
+    activeFilters.delete(cat);
+    btn.classList.remove('active');
+  } else {
+    activeFilters.add(cat);
+    btn.classList.add('active');
+  }
+  document.querySelectorAll('.event-item').forEach(el => {
+    el.style.display = activeFilters.has(el.dataset.cat) ? '' : 'none';
+  });
+}
+
+function clearLog() {
+  const log = document.getElementById('event-log');
+  log.innerHTML = '<div class="empty-log" id="log-empty"><div class="empty-icon">📋</div>Log cleared</div>';
+}
+
+/* ── Toast ──────────────────────────────────────────────────────── */
+let toastTimer = null;
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className   = 'toast' + (isError ? ' error-toast' : '');
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+/* ── Utils ──────────────────────────────────────────────────────── */
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function truncate(str, n) {
+  return str.length > n ? str.slice(0, n) + '…' : str;
+}
+</script>
+</body>
+</html>

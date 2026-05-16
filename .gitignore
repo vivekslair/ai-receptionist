@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+maya.log
+.DS_Store
+venv/
+.venv/
